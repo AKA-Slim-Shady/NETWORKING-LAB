@@ -67,6 +67,24 @@ cd NEW_PROJ
 
 ---
 
+### **Guacamole User Mapping**
+
+A basic `user-mapping.xml` is provided in `config/` with default login:
+
+* **Username:** user
+* **Password:** password
+
+Ensure the backend can read and write this file:
+
+```bash
+chmod 664 config/user-mapping.xml
+```
+
+This file is automatically updated by the backend when nodes are run.
+
+
+---
+
 ### **Start Guacamole Stack (Docker)**
 Run Guacamole:
 

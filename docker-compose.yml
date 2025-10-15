@@ -1,0 +1,18 @@
+version: '3'
+
+services:
+  guacd:
+    image: guacamole/guacd
+    restart: always
+    network_mode: "host"   # guacd can reach VNC on localhost:5901
+
+  guacamole:
+    image: guacamole/guacamole
+    restart: always
+    network_mode: "host"   # guacamole can reach guacd at localhost:4822
+    environment:
+      GUACD_HOSTNAME: localhost
+      GUACD_PORT: 4822
+      GUACAMOLE_HOME: /config
+    volumes:
+      - ./config:/config   # mounts your user-mapping.xml

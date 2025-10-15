@@ -1,0 +1,61 @@
+# === Node.js (Backend + Frontend) ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# === Logs ===
+*.log
+logs/
+*.out
+*.pid
+
+# === Environment files ===
+.env
+.env.*
+!.env.example
+
+# === System / IDE files ===
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# === Build outputs ===
+dist/
+build/
+coverage/
+.cache/
+.temp/
+
+# === Backend specific ===
+backend/overlays/
+backend/*.pid
+backend/*.qcow2
+backend/*.img
+backend/*.log
+backend/*.tmp
+backend/dharshu.txt
+
+# === Frontend specific ===
+Frontend/node_modules/
+Frontend/dist/
+Frontend/.env
+Frontend/.vite/
+
+# === Docker / Guacamole / MySQL ===
+mysql-data/
+config/user-mapping.xml
+guacamole-server-*/
+*.cnf
+
+# === OS-specific ===
+*~
+*.swp
+*.swo
+
+# === Misc ===
+*.bak
+*.old
+*.save

@@ -62,7 +62,7 @@ sudo apt install qemu qemu-kvm qemu-utils
 ### **Clone the Repository**
 ```bash
 git clone https://github.com/AKA-Slim-Shady/NETWORKING-LAB.git
-cd NEW_PROJ
+cd NETWORKING-LAB
 ```
 
 ---
@@ -142,7 +142,7 @@ You’ll see the dashboard with all node controls.
 ## File Structure
 
 ```
-NEW PROJ/
+NETWORKING-LAB/
 ├── backend/
 │   ├── overlays/          ← QEMU overlay images
 │   ├── run-vm.sh          ← Script to launch QEMU

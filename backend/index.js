@@ -3,219 +3,176 @@ const { exec } = require('node:child_process');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
+const cors = require('cors');
 
 const app = express();
 app.use(express.json());
-
-const cors = require('cors');
 app.use(cors());
 
-let database = {};
+let database = {}; 
+const USER_MAPPING_PATH = path.join(__dirname, '..', 'config', 'user-mapping.xml');
 
-app.get("/database", (req, res) => {
-    res.json(database);
-});
+function updateUserMapping(db) {
+    const header = `<user-mapping>\n  <authorize username="user" password="password">\n`;
+    const footer = `  </authorize>\n</user-mapping>\n`;
 
-app.post("/nodes", function(req, res) {
+    let connections = '';
+
+    for (const [nodeId, node] of Object.entries(db)) {
+        if (!node.port) continue; // only include running nodes
+        connections += `
+    <connection name="${nodeId}">
+      <protocol>vnc</protocol>
+      <param name="hostname">localhost</param>
+      <param name="port">${node.port}</param>
+      <param name="password"></param>
+    </connection>\n`;
+    }
+
+    const xml = header + connections + footer;
+    fs.writeFileSync(USER_MAPPING_PATH, xml, 'utf8');
+    console.log('user-mapping.xml synced with current database.');
+
+    // Restart Guacamole so it reloads connections
+    exec('sudo docker-compose restart guacamole', (err, out, serr) => {
+        if (err) console.error('Failed to restart Guacamole:', serr);
+    });
+}
+
+
+/**
+ * @returns {Promise<void>} Returns the In-Memory Database Object
+ */
+app.get("/database", (req, res) => res.json(database));
+
+
+/**
+ * Creates the overlay image named after a unique ID.
+ * @returns {Promise<void>} Returns the uniqueID as JSON upon success!
+ */
+app.post("/nodes", (req, res) => {
     const newNodeId = uuidv4();
     const command = `./create-vm.sh ${newNodeId}`;
+    console.log(`Executing: ${command}`);
 
-    console.log(`Executing command: ${command}`);
     exec(command, (error, stdout, stderr) => {
         if (error) {
-            console.error(`exec error: ${error}`);
+            console.error(`Error creating overlay: ${stderr}`);
             return res.status(500).send("Failed to create overlay.");
         }
-        console.log(`stdout:\n${stdout}`);
-        console.error(`stderr:\n${stderr}`);
 
-        database[newNodeId] = { "port": null, "status": "STOPPED", "pid": null };
-        console.log(database);
-
-        res.status(201).json({
-            message: "Node created successfully!",
-            nodeId: newNodeId
-        });
+        database[newNodeId] = { port: null, status: "STOPPED", pid: null };
+        console.log("Node created:", newNodeId);
+        res.status(201).json({ message: "Node created successfully!", nodeId: newNodeId });
     });
 });
 
-const USER_MAPPING_PATH = path.join(__dirname, '..', 'config', 'user-mapping.xml');
 
-
-app.post("/nodes/:id/run", function(req, res) {
+/**
+ * Runs a bash script to run the qemu-system-x86_64 .. command to start running the headless vm
+ * @returns {Promise<void>} Returns a JSON of nodeID with status as Running
+ */
+app.post("/nodes/:id/run", (req, res) => {
     const nodeId = req.params.id;
     const node = database[nodeId];
+    if (!node) return res.status(404).send("Node not found.");
+    if (node.status === "RUNNING") return res.status(409).send("Already running.");
 
-    if (!node) return res.status(404).json({ error: `Node with ID ${nodeId} not found.` });
-    if (node.status === "RUNNING") return res.status(409).json({ error: "Node is already running." });
+    const usedPorts = Object.values(database).map(n => n.port);
+    let port = 5901;
+    while (usedPorts.includes(port)) port++;
 
-    const existingNodes = Object.values(database);
-    let new_port = 0;
-
-    for (let i = 5901; i < 7900; i++) {
-        const isPortInUse = existingNodes.some(n => n.port === i);
-        if (!isPortInUse) {
-            new_port = i;
-            break;
-        }
-    }
-
-    if (new_port === 0) return res.status(503).send("Error: No available ports.");
-
-    const command = `./run-vm.sh ${nodeId} ${new_port}`;
-    console.log(`Executing command: ${command}`);
+    const command = `./run-vm.sh ${nodeId} ${port}`;
+    console.log(`Running: ${command}`);
 
     exec(command, (error, stdout, stderr) => {
         if (error) {
-            console.error(`exec error: ${error}`);
-            return res.status(500).send("Failed to run VM.");
+            console.error(`Run error: ${stderr}`);
+            return res.status(500).send("Failed to start VM.");
         }
-        console.log(`stdout:\n${stdout}`);
-        console.error(`stderr:\n${stderr}`);
 
         try {
             const pid = fs.readFileSync(`./overlays/${nodeId}.pid`, 'utf8').trim();
-            
-            node.port = new_port;
-            node.status = "RUNNING";
+            node.port = port;
             node.pid = pid;
+            node.status = "RUNNING";
 
-            console.log("Updated Database:", database);
+            updateUserMapping(database);
 
-            // --- UPDATE user-mapping.xml ---
-            let xmlData = fs.readFileSync(USER_MAPPING_PATH, 'utf8');
-
-            // Remove any existing connection for this node
-            xmlData = xmlData.replace(
-                new RegExp(`<connection name="${nodeId}">[\\s\\S]*?</connection>`, 'g'),
-                ''
-            );
-
-            // Insert new connection before </authorize>
-            const connectionEntry = `
-    <connection name="${nodeId}">
-        <protocol>vnc</protocol>
-        <param name="hostname">localhost</param>
-        <param name="port">${new_port}</param>
-        <param name="password"></param>
-    </connection>`;
-            
-            xmlData = xmlData.replace('</authorize>', `${connectionEntry}\n</authorize>`);
-
-            fs.writeFileSync(USER_MAPPING_PATH, xmlData, 'utf8');
-            console.log(`user-mapping.xml updated for node ${nodeId}`);
-
-            // Optional: Restart Guacamole container to pick up new connection
-            exec('sudo docker-compose restart guacamole', (err, out, serr) => {
-                if (err) console.error('Failed to restart Guacamole:', serr);
-            });
-
-            res.status(200).json({
-                message: `Node ${nodeId} is now running.`,
-                database_entry: node
-            });
-
-        } catch (readError) {
-             console.error("Error reading PID file:", readError);
-             res.status(500).send("VM started, but failed to read PID file.");
+            res.json({ message: `Node ${nodeId} is now running.`, node });
+        } catch (err) {
+            console.error("Error reading PID:", err);
+            res.status(500).send("Started, but PID read failed.");
         }
     });
 });
 
-app.get("/nodes" , function(req , res){
-    res.json(database);
-});
 
-app.post("/nodes/:id/stop" , function(req , res){
-    const id = req.params.id;
-    if(!id){
-        return res.status(404).json(
-            {
-                "message" : "NO NODE WITH THAT ID EXISTS!"
-            }
-        );
-    }
-    if(id && database[id].status === "STOPPED"){
-        return res.status(409).json(
-            {
-                "message" : "THIS NODE IS ALREADY STOPPED"
-            }
-        );
-    }
+/**
+ * Stopping the VM here means that the old overlay file is deleted and a new one is recreated for a fresh start
+ * @returns {Promise<void>} Returns a json with status of the VM having nodeId as Stopped
+ */
+app.post("/nodes/:id/stop", (req, res) => {
+    const nodeId = req.params.id;
+    const node = database[nodeId];
+    if (!node) return res.status(404).send("Node not found.");
+    if (node.status === "STOPPED") return res.status(409).send("Already stopped.");
 
-    const pid = database[id].pid;
+    console.log(`Stopping node ${nodeId}...`);
+    exec(`kill ${node.pid}`, (error) => {
+        if (error) console.error("Kill error:", error);
 
-    const command = `kill ${pid}`;
+        // Delete old overlay and recreate new one
+        const overlay = `./overlays/${nodeId}.qcow2`;
+        const pidPath = `./overlays/${nodeId}.pid`;
 
-    exec(command , function(error , stdout , stderr){
-        if(error){
-            return res.status(500).json(
-                {
-                    "message" : "UNABLE TO EXECUTE COMMAND TO KILL NODE!",
-                    "error" : stderr
-                }
-            );
-        }
-        database[id].status = "STOPPED";
-        database[id].port = null;
-        database[id].pid = null;
-        return res.status(200).json(
-            {
-                "message" : "THE NODE HAS BEEN STOPPED SUCCESSFULLY!",
-                "stdout" : stdout
-            }
-        );
-    });
-});
-
-app.post("/nodes/:id/wipe", function(req, res) {
-    const id = req.params.id;
-    const node = database[id];
-
-    if (!node) {
-        return res.status(404).json({
-            "message": "NO NODE WITH THAT ID EXISTS!"
-        });
-    }
-
-    const wipeNode = () => {
-        const overlayPath = `./overlays/${id}.qcow2`;
-        const pidPath = `./overlays/${id}.pid`;
-        const command = `rm -f ${overlayPath} ${pidPath} && ./create-vm.sh ${id}`;
-
-        exec(command, (error, stdout, stderr) => {
-            if (error) {
-                return res.status(500).json({
-                    "message": "Failed to wipe and recreate overlay.",
-                    "error": stderr
-                });
-            }
+        exec(`rm -f ${overlay} ${pidPath} && ./create-vm.sh ${nodeId}`, (err) => {
+            if (err) console.error("Overlay recreation failed:", err);
 
             node.status = "STOPPED";
             node.port = null;
             node.pid = null;
 
-            return res.status(200).json({
-                "message": `Node ${id} has been wiped successfully!`
-            });
+            updateUserMapping(database);
+            res.json({ message: `Node ${nodeId} stopped and overlay recreated.` });
+        });
+    });
+});
+
+
+/**
+ * Completely removes the overlay image and updates the in memory database and the XML file (this is done to ensure that the user-mapping.xml file is updated properly and doesnt have old VM information present in it)
+ * @returns {Promise<void>} Returns JSON with msg indicating that VM has been wiped fully
+ */
+app.post("/nodes/:id/wipe", (req, res) => {
+    const nodeId = req.params.id;
+    const node = database[nodeId];
+    if (!node) return res.status(404).send("Node not found.");
+
+    console.log(`Wiping node ${nodeId}...`);
+    const overlay = `./overlays/${nodeId}.qcow2`;
+    const pidPath = `./overlays/${nodeId}.pid`;
+
+    const finishWipe = () => {
+        delete database[nodeId];
+        exec(`rm -f ${overlay} ${pidPath}`, (err) => {
+            if (err) console.error("Failed to delete overlay:", err);
+            updateUserMapping(database);
+            res.json({ message: `Node ${nodeId} wiped completely.` });
         });
     };
 
-    if (node.status === "RUNNING") {
-        const pid = node.pid;
-        const command = `kill ${pid}`;
-        exec(command, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`Error stopping node during wipe: ${stderr}`);
-            }
-            wipeNode();
+    if (node.status === "RUNNING" && node.pid) {
+        exec(`kill ${node.pid}`, (error) => {
+            if (error) console.error("Kill before wipe failed:", error);
+            finishWipe();
         });
     } else {
-        wipeNode();
+        finishWipe();
     }
 });
 
-app.listen(3000, function() {
-    console.log("LISTENING ON PORT 3000!");
-});
-
+/**
+ * Starts listening on port 3000
+ */
+app.listen(3000, () => console.log("Backend running on port 3000"));

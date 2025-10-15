@@ -44,6 +44,11 @@ function App() {
   const handleStopNode = (nodeId) => handleApiAction(`${API_BASE_URL}/nodes/${nodeId}/stop`);
   const handleWipeNode = (nodeId) => handleApiAction(`${API_BASE_URL}/nodes/${nodeId}/wipe`);
 
+
+  /**
+   * @param {*} nodeId 
+   * Constructs a URL for the user to open , this URL is to the homepage of the Guacamole Webpage (login first and then access guacamole console)
+   */
   const handleOpenConsole = (nodeId) => {
     const node = nodes[nodeId];
     if (!node || node.status !== 'RUNNING') {
@@ -58,14 +63,9 @@ function App() {
     window.open(guacamoleURL, "_blank");
 };
 
-
-
-
-
-
   return (
     <div className="app-container">
-      <h1 className="title">EASY-VM</h1>
+      <h1 className="title">NETWORKING-LAB</h1>
       
       <div className={`nodes-container ${Object.keys(nodes).length === 0 ? 'empty-nodes-container' : ''}`}>
         {Object.keys(nodes).length === 0 ? (

@@ -69,11 +69,16 @@ cd NEW_PROJ
 
 ### **Guacamole User Mapping**
 
-A basic `user-mapping.xml` is provided in `config/` with default login:
+The backend requires a `user-mapping.xml` file for Guacamole to map nodes to VNC connections.  
+If it does not exist, create it with a simple setup script:
 
-* **Username:** user
-* **Password:** password
-
+```bash
+cd config
+echo '<user-mapping>
+  <authorize username="user" password="password">
+  </authorize>
+</user-mapping>' > user-mapping.xml
+```
 Ensure the backend can read and write this file:
 
 ```bash
@@ -81,7 +86,6 @@ chmod 664 config/user-mapping.xml
 ```
 
 This file is automatically updated by the backend when nodes are run.
-
 
 ---
 

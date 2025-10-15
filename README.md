@@ -70,9 +70,10 @@ cd NETWORKING-LAB
 ### **Guacamole User Mapping**
 
 The backend requires a `user-mapping.xml` file for Guacamole to map nodes to VNC connections.  
-If it does not exist, create it with a simple setup script:
+Please run this below snippet correctly in order for the User-Mapping to happen (This is mandatory for Guacamole Login).
 
 ```bash
+mkdir config
 cd config
 sudo bash -c "echo '<user-mapping>
   <authorize username=\"user\" password=\"password\">

@@ -74,10 +74,10 @@ If it does not exist, create it with a simple setup script:
 
 ```bash
 cd config
-echo '<user-mapping>
-  <authorize username="user" password="password">
+sudo bash -c "echo '<user-mapping>
+  <authorize username=\"user\" password=\"password\">
   </authorize>
-</user-mapping>' > user-mapping.xml
+</user-mapping>' > user-mapping.xml"
 ```
 Ensure the backend can read and write this file:
 

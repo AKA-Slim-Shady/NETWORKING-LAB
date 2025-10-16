@@ -94,7 +94,7 @@ This file is automatically updated by the backend when nodes are run.
 Run Guacamole:
 
 ```bash
-sudo docker compose up -d
+sudo docker-compose up -d
 ```
 
 This will:
@@ -170,7 +170,7 @@ NETWORKING-LAB/
 
 Stop and remove all containers:
 ```bash
-sudo docker compose down
+sudo docker-compose down
 ```
 
 Remove all overlays and PIDs:

@@ -59,3 +59,7 @@ guacamole-server-*/
 *.bak
 *.old
 *.save
+
+# VM Images - Do not commit
+*.qcow2
+overlays/

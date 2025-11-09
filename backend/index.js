@@ -11,6 +11,7 @@ app.use(cors());
 
 let database = {};
 const USER_MAPPING_PATH = path.join(__dirname, '..', 'config', 'user-mapping.xml');
+const OVERLAYS_DIR = './overlays'; // Defined for use in functions
 
 /**
  * Utility: Sync user-mapping.xml with currently active nodes
@@ -22,14 +23,16 @@ function updateUserMapping(db) {
 
     let connections = '';
     for (const [nodeId, node] of Object.entries(db)) {
-        if (!node.port) continue;
-        connections += `
+        // --- FIX ---
+        // Only map nodes that are RUNNING and have a port.
+        if (node.status === "RUNNING" && node.port) {
+            connections += `
     <connection name="${nodeId}">
         <protocol>vnc</protocol>
         <param name="hostname">localhost</param>
         <param name="port">${node.port}</param>
-        <param name="password"></param>
-    </connection>\n`;
+    </connection>\n`; // Removed empty <password> param
+        }
     }
 
     fs.writeFileSync(USER_MAPPING_PATH, header + connections + footer, 'utf8');
@@ -74,22 +77,38 @@ app.post("/nodes", (req, res) => {
  * Runs a bash script to run the qemu-system-x86_64 .. command to start running the headless vm
  * @returns {Promise<void>} Returns a JSON of nodeID with status as Running
  */
+// --- THIS IS THE CORRECTED RUN FUNCTION ---
 app.post("/nodes/:id/run", (req, res) => {
     const nodeId = req.params.id;
     const node = database[nodeId];
+    const { type, socketPort } = req.body; // Read from body
 
     if (!node) return res.status(404).json({ error: `Node with ID ${nodeId} not found.` });
     if (node.status === "RUNNING") return res.status(409).json({ error: "Node is already running." });
 
+    // Find an available VNC port
     const existingNodes = Object.values(database);
     let new_port = 0;
     for (let i = 5901; i < 7900; i++) {
-        const isPortInUse = existingNodes.some(n => n.port === i);
-        if (!isPortInUse) { new_port = i; break; }
+        if (!existingNodes.some(n => n.port === i)) {
+            new_port = i;
+            break;
+        }
     }
     if (new_port === 0) return res.status(503).send("Error: No available ports.");
 
-    const command = `./run-vm.sh ${nodeId} ${new_port}`;
+    if (type === undefined) {
+         return res.status(400).json({ error: "Missing 'type' in body." });
+    }
+    
+    let command = `./run-vm.sh ${nodeId} ${new_port} ${type}`;
+    if (type === 0 || type === "0") { // If it's a PC, it needs the 4th argument
+        if (socketPort === undefined) { // Check for undefined, 0 is valid
+            return res.status(400).json({ error: "Missing 'socketPort' in body for PC node." });
+        }
+        command += ` ${socketPort}`;
+    }
+
     console.log(`Executing command: ${command}`);
 
     exec(command, (error, stdout, stderr) => {
@@ -99,7 +118,7 @@ app.post("/nodes/:id/run", (req, res) => {
         }
 
         try {
-            const pid = fs.readFileSync(`./overlays/${nodeId}.pid`, 'utf8').trim();
+            const pid = fs.readFileSync(path.join(OVERLAYS_DIR, `${nodeId}.pid`), 'utf8').trim();
             node.port = new_port;
             node.status = "RUNNING";
             node.pid = pid;
@@ -122,7 +141,9 @@ app.post("/nodes/:id/run", (req, res) => {
 app.get("/nodes", (req, res) => res.json(database));
 
 /**
- * Stopping the VM here means that the old overlay file is deleted and a new one is recreated for a fresh start
+ * --- THIS IS THE FIXED STOP FUNCTION ---
+ * It now ONLY stops the VM and removes the .pid file.
+ * It NO LONGER deletes the overlay, preserving your settings.
  * @returns {Promise<void>} Returns a json with status of the VM having nodeId as Stopped
  */
 app.post("/nodes/:id/stop", (req, res) => {
@@ -135,28 +156,28 @@ app.post("/nodes/:id/stop", (req, res) => {
     console.log(`Stopping node ${id} (PID ${node.pid})...`);
 
     exec(`kill ${node.pid}`, (error, stdout, stderr) => {
-        if (error) console.error("Kill error:", stderr);
+        if (error) console.error("Kill error (continuing anyway):", stderr);
 
-        const overlayPath = `./overlays/${id}.qcow2`;
-        const pidPath = `./overlays/${id}.pid`;
+        const pidPath = path.join(OVERLAYS_DIR, `${id}.pid`);
+        if (fs.existsSync(pidPath)) {
+            fs.unlinkSync(pidPath); // Clean up the pid file
+        }
 
-        exec(`rm -f ${overlayPath} ${pidPath} && ./create-vm.sh ${id}`, (err) => {
-            if (err) console.error("Overlay recreation failed:", err);
+        node.status = "STOPPED";
+        node.port = null;
+        node.pid = null;
 
-            node.status = "STOPPED";
-            node.port = null;
-            node.pid = null;
-
-            updateUserMapping(database);
-            res.status(200).json({
-                message: `Node ${id} stopped and overlay recreated successfully!`
-            });
+        updateUserMapping(database); // Update Guacamole to remove the connection
+        res.status(200).json({
+            message: `Node ${id} stopped. Settings are preserved.`
         });
     });
 });
 
 /**
- * Completely removes the overlay image and updates the in memory database and the XML file 
+ * --- THIS IS THE FIXED WIPE FUNCTION ---
+ * This is now the only destructive action. It stops the VM,
+ * deletes the node from the database, and deletes its files.
  * @returns {Promise<void>} Returns JSON with msg indicating that VM has been wiped fully
  */
 app.post("/nodes/:id/wipe", (req, res) => {
@@ -168,11 +189,11 @@ app.post("/nodes/:id/wipe", (req, res) => {
     }
 
     console.log(`Wiping node ${id}...`);
-    const overlayPath = `./overlays/${id}.qcow2`;
-    const pidPath = `./overlays/${id}.pid`;
+    const overlayPath = path.join(OVERLAYS_DIR, `${id}.qcow2`);
+    const pidPath = path.join(OVERLAYS_DIR, `${id}.pid`);
 
     const finishWipe = () => {
-        delete database[id];
+        delete database[id]; // Delete from in-memory database
         exec(`rm -f ${overlayPath} ${pidPath}`, (err) => {
             if (err) console.error("Failed to delete overlay:", err);
             updateUserMapping(database);
@@ -183,10 +204,10 @@ app.post("/nodes/:id/wipe", (req, res) => {
     if (node.status === "RUNNING" && node.pid) {
         exec(`kill ${node.pid}`, (error) => {
             if (error) console.error("Error stopping node before wipe:", error);
-            finishWipe();
+            finishWipe(); // Wipe it even if kill fails
         });
     } else {
-        finishWipe();
+        finishWipe(); // It's already stopped, just wipe it
     }
 });
 

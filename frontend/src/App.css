@@ -1,140 +1,173 @@
+/* --- Base Styles --- */
+:root {
+  --bg-color: #1a1a1a;
+  --card-bg: #2a2a2a;
+  --border-color: #444;
+  --text-color: #f0f0f0;
+  --accent-color: #007bff;
+  --success-color: #28a745;
+  --danger-color: #dc3545;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
 .app-container {
+  max-width: 1200px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  width: 100%;
-  min-height: 100vh;
-  padding: 2rem;
-  box-sizing: border-box;
 }
 
 .title {
-  font-size: 3.5em;
-  color: #00ff41;
-  text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41;
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--text-color);
+  letter-spacing: 1px;
   margin-bottom: 2rem;
-  letter-spacing: 2px;
 }
 
+/* --- Nodes Container --- */
 .nodes-container {
-  width: 100%;
-  max-width: 900px;
-  min-height: 60vh;
-  background-color: #0d0d0d;
-  border: 2px solid #00ff41;
-  box-shadow: 0 0 15px #00ff41 inset, 0 0 15px #00ff41;
-  border-radius: 15px;
-  padding: 2rem;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.5rem;
-  overflow-y: auto;
+  width: 100%;
 }
 
 .empty-nodes-container {
+  display: flex;
   justify-content: center;
+  align-items: center;
+  min-height: 200px;
 }
 
+/* --- Add Node Button --- */
 .add-node-btn {
-  font-size: 5rem;
-  color: #00ff41;
-  background: none;
-  border: 2px dashed #00ff41;
-  width: 100px;
-  height: 100px;
+  background: var(--accent-color);
+  color: white;
+  border: none;
   border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  font-size: 2.5rem;
+  font-weight: 200;
   cursor: pointer;
-  transition: all 0.3s ease;
+  box-shadow: var(--shadow);
+  transition: all 0.2s ease-in-out;
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
+  line-height: 1;
 }
 
 .add-node-btn:hover {
-  background-color: rgba(0, 255, 65, 0.1);
-  box-shadow: 0 0 20px #00ff41;
+  transform: scale(1.1);
+  background: #0069d9;
 }
 
+.add-more-btn {
+  margin-top: 2rem;
+}
+
+/* --- Node Card --- */
 .node-card {
-  width: 100%;
-  background-color: #1a1a1a;
-  border: 1px solid #00ff41;
-  border-radius: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
   padding: 1rem 1.5rem;
-  box-sizing: border-box;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  transition: box-shadow 0.3s ease;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .node-card:hover {
-    box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
 }
 
 .node-info {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  text-align: left;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
 }
 
 .node-id {
-  font-size: 0.9em;
-  color: #ccc;
-}
-
-.node-id strong {
-    color: #fff;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  background-color: var(--border-color);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  cursor: help;
 }
 
 .node-status {
-  font-size: 1.2em;
-  font-weight: bold;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
 }
 
 .status-running {
-  color: #00ff41;
+  background-color: rgba(40, 167, 69, 0.2);
+  color: var(--success-color);
 }
 
 .status-stopped {
-  color: #ff4141;
+  background-color: rgba(220, 53, 69, 0.2);
+  color: var(--danger-color);
 }
 
+/* --- Action Buttons --- */
 .action-buttons {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.75rem;
 }
 
 .action-buttons button {
-  background: none;
-  border: 1px solid #00ff41;
-  color: #00ff41;
-  padding: 0.5rem;
-  border-radius: 5px;
+  background-color: var(--border-color);
+  color: var(--text-color);
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem;
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
+  transition: background-color 0.2s ease;
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
+  font-weight: 600;
 }
 
 .action-buttons button:hover:not(:disabled) {
-  background-color: #00ff41;
-  color: #0d0d0d;
+  background-color: #555;
 }
 
 .action-buttons button:disabled {
-  border-color: #444;
-  color: #444;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-.action-buttons svg {
-    width: 24px;
-    height: 24px;
+.action-buttons button svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Custom run buttons */
+.run-btn {
+  gap: 0.5rem; /* Space between icon and number */
+  background-color: var(--accent-color) !important;
+}
+.run-btn:hover:not(:disabled) {
+  background-color: #0069d9 !important;
 }
